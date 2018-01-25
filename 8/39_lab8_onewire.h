@@ -1,0 +1,120 @@
+#ifndef ONEWIRE_H_
+#define ONEWIRE_H_
+
+#include "gpio.h"
+
+typedef struct {
+	GPIO_TypeDef* GPIOx;           /*!< GPIOx port to be used for I/O functions */
+	uint32_t GPIO_Pin;             /*!< GPIO Pin to be used for I/O functions */
+} OneWire_t;
+
+
+#define SKIPROM 0xCC
+
+/* Init OneWire Struct with GPIO information
+ * param:
+ *   OneWire: struct to be initialized
+ *   GPIOx: Base of the GPIO DQ used, e.g. GPIOA
+ *   GPIO_Pin: The pin GPIO DQ used, e.g. 5
+ */
+void OneWire_Init(OneWire_t* OneWireStruct, GPIO_TypeDef* GPIOx, uint32_t GPIO_Pin) {
+	TM_GPIO_Init(GPIOx, GPIO_Pin, TM_GPIO_Mode_OUT, TM_GPIO_OType_OD, TM_GPIO_PuPd_UP, TM_GPIO_Speed_Medium);
+	OneWireStruct->GPIOx = GPIOx;
+	OneWireStruct->GPIO_Pin = GPIO_Pin;
+}
+
+/* Send reset through OneWireStruct
+ * Please implement the reset protocol
+ * param:
+ *   OneWireStruct: wire to send
+ * retval:
+ *    0 -> Reset OK
+ *    1 -> Reset Failed
+ */
+uint8_t OneWire_Reset(OneWire_t* OneWireStruct) {
+	TM_GPIO_SetPinAsInput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	TM_GPIO_SetPinAsOutput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	TM_GPIO_SetPinLow(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	delay_us(480);
+	TM_GPIO_SetPinAsInput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	delay_us(70);
+	int state = TM_GPIO_GetInputPinValue(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	delay_us(410);
+	return state;
+}
+
+/* Write 1 bit through OneWireStruct
+ * Please implement the send 1-bit protocol
+ * param:
+ *   OneWireStruct: wire to send
+ *   bit: bit to send
+ */
+void OneWire_WriteBit(OneWire_t* OneWireStruct, uint8_t bit) {
+	delay_us(5);
+	TM_GPIO_SetPinAsInput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	TM_GPIO_SetPinAsOutput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	TM_GPIO_SetPinLow(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	delay_us(5);
+	if (bit) {
+		TM_GPIO_SetPinAsInput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+		delay_us(70);
+	}
+	else {
+		delay_us(70);
+		TM_GPIO_SetPinAsInput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	}
+}
+
+/* Read 1 bit through OneWireStruct
+ * Please implement the read 1-bit protocol
+ * param:
+ *   OneWireStruct: wire to read from
+ */
+uint8_t OneWire_ReadBit(OneWire_t* OneWireStruct) {
+	delay_us(5);
+	TM_GPIO_SetPinAsInput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	TM_GPIO_SetPinAsOutput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	TM_GPIO_SetPinLow(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	delay_us(5);
+	TM_GPIO_SetPinAsInput(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	int bit = TM_GPIO_GetInputPinValue(OneWireStruct->GPIOx, OneWireStruct->GPIO_Pin);
+	delay_us(70);
+	return bit;
+}
+
+/* A convenient API to write 1 byte through OneWireStruct
+ * Please use OneWire_WriteBit to implement
+ * param:
+ *   OneWireStruct: wire to send
+ *   byte: byte to send
+ */
+void OneWire_WriteByte(OneWire_t* OneWireStruct, uint8_t byte) {
+	for (int i=0; i<8; i++) {
+		OneWire_WriteBit(OneWireStruct, byte&1);
+		byte = byte >> 1;
+	}
+}
+
+/* A convenient API to read 1 byte through OneWireStruct
+ * Please use OneWire_ReadBit to implement
+ * param:
+ *   OneWireStruct: wire to read from
+ */
+uint8_t OneWire_ReadByte(OneWire_t* OneWireStruct) {
+	int result = 0;
+	int bit;
+	for (int i=0; i<8; i++) {
+		bit = OneWire_ReadBit(OneWireStruct);
+		result |= bit << i;
+	}
+	return result;
+}
+
+/* Send ROM Command, Skip ROM, through OneWireStruct
+ * You can use OneWire_WriteByte to implement
+ */
+void OneWire_SkipROM(OneWire_t* OneWireStruct) {
+	OneWire_WriteByte(OneWireStruct, SKIPROM);
+}
+
+#endif /* ONEWIRE_H_ */
